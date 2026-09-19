@@ -1,133 +1,84 @@
-# Keymeleon — backend
+## Inspiration
 
-Six mechanical keys whose functions change with what the developer is actually doing.
+Imagine a mechanical keyboard with an OLED display built into each keycap, where every key can change based on what you’re doing. 
 
-This repository holds the **backend**: the service that observes real developer state, decides which six actions are most likely useful right now, and executes the one that gets pressed. It ships with the two programs that feed it context — a VS Code extension and a macOS foreground-app host — and a minimal display client that draws the six keys. The physical keyboard is not in this repository.
+That was the idea behind Keymaeleon. Instead of memorizing shortcuts or reaching for different controls in every app, we wanted the keyboard itself to understand the current context and show the actions that matter most. 
 
-The central bet is that a six-key surface is only worth having if the keys are *right*, and keys are only right if the system knows what just happened. So this backend does not guess from a script. It reads the working tree, the editor's diagnostics, the exit status of a real test process, and the coding agent's own session transcript, and it derives the layout from those facts.
+For developers, that means the keys can react to things like running tests, debugging, Git changes, or errors, and surface useful actions right when they’re needed.
 
-> The project is named Keymeleon; the code, the LaunchAgent label, and the VS Code command namespace still use the earlier internal name `SIX` (`com.six.keyboard`, `six.connect`, `six.config.json`). Renaming those would break the installed agent and the extension's published command IDs, so they are left alone.
+## What it does
 
-## The six keys
+Keymaeleon is a mechanical keyboard with an OLED display built into each key.
 
-```
-U — primary     I — secondary     O — inspect
-J — agent       K — more          L — back / apps
-```
+A desktop app keeps track of what application is currently active and changes both what the keys display and what they actually do.
 
-Letters stay fixed. Labels change. `K` pages through additional actions; `L` returns to the previous useful layer.
+We focused a lot on VS Code. Depending on what’s happening while you’re coding, the keyboard can show actions like:
 
-## What the backend actually observes
+* Run Tests
+* Debug
+* Explain
+* Fix
+* View Diff
+* Approve
+* Reject
+* Commit
 
-| Source | File | What it yields |
-|---|---|---|
-| VS Code | `server/editor.js` | Active file, language, selection size, **unsaved-file count**, diagnostics with file+line, which window is focused, which SIX terminals are open |
-| Coding agent | `server/agents.js` | Whether Codex or Claude is **working or finished**, the last request, the last shell command and its exit code, and **which files it patched** |
-| Project + Git | `server/runtime.js` | Recursive content fingerprint (staleness), branch, dirty state, per-file status, untracked vs. tracked |
-| Test process | `server/runtime.js` | A real spawned process: live output, exit code, TAP failure totals, cancellation, timeout |
-| Foreground app | `native/SixHost.m` | Which macOS application has focus, by bundle ID |
-| Microphone | `server/voice.js` | Local FFmpeg capture → local Whisper transcription, with an explicit review step |
+The cool part is that the keyboard can react to more than just which app is open. It can also react to what’s happening inside that app.
 
-The agent observer is the unusual one. Rather than scraping a terminal or driving the CLI, it tails the transcripts the agents write for themselves — `~/.codex/sessions/**/rollout-*.jsonl` and `~/.claude/projects/<slug>/*.jsonl` — and reduces them to a lifecycle. Everything it reports is something the agent stated about itself. It also counts recent sessions per project to learn which agent this developer actually uses, and offers that one on `J`.
+For programs we haven’t specifically built support for, we use the OpenAI API to generate a control profile and suggest actions that might be useful.
 
-## What the keys become
+## How we built it
 
-`live.js` resolves exactly one layer, and carries the reason it won. Current behavior:
+On the hardware side, we used an Arduino Nano ESP32 connected to mechanical switches and individual OLED displays.
 
-| Observed situation | U | I | O | J | K | L |
-|---|---|---|---|---|---|---|
-| No project yet, some other app focused | VS Code | Codex / Claude | Chrome | Terminal | More | Finder |
-| Editing a connected project | Run Tests | Git Diff | Output | Agent in Terminal | More | Context |
-| **Agent is working** | Focus its terminal | Git Diff | Problems | Test Output | More | Context |
-| **Agent finished and the tree is dirty** | **Diff the file it patched** | Run Tests | Git Diff | Problems | More | Context |
-| Tests running | Output | Stop Tests | Git Diff | Agent in Terminal | More | Context |
-| Tests failed | Run Tests | Git Diff | Output | Agent in Terminal | More | Context |
-| Agent terminal is open | Focus terminal | Run / Stop Tests | Problems | Talk to Agent | More | Project Keys |
-| Recording speech | Stop & Transcribe | Cancel | — | — | — | — |
-| Transcript ready | Insert in Terminal | Review Text | Record Again | Cancel | — | — |
+The Arduino is responsible for reading key presses, updating the OLEDs, communicating with the computer over USB serial, and sending keyboard/media HID events.
 
-A key that cannot work is shown **disabled with the reason**, never hidden and never silently dead: *"Save your VS Code files before running tests."*, *"The selected project has no usable Git repository."*, *"Reload the SIX VS Code extension to enable this key."*
+On the computer, we have a Python service that acts as the main bridge between the keyboard and the software running on the machine.
 
-The post-agent review layer is the one to watch in a demo. Ask Codex for a change; while it works, `U` follows its terminal. The moment its transcript reports the turn complete and Git sees a dirty tree, `U` becomes a diff of the exact file it touched and `I` becomes Run Tests. Nobody pressed a mode button.
+For VS Code, we built an extension that can see things like the active file, Git state, test results, terminal activity, debugging state, and other workspace information.
 
-## Run it
+That context gets sent to the Python service, which decides what should be shown on the keyboard. We can also use OpenAI to help pick actions that make sense for the current situation.
 
-Node 18+. No dependencies to install.
+## Challenges we ran into
 
-```sh
-npm start     # backend + display client on http://127.0.0.1:5173
-npm test      # 27 tests: runtime, editor bridge, agent observer, layers, keyboard, voice
-```
+One of the hardest parts was figuring out what the keys should actually show.
 
-Open http://127.0.0.1:5173 for the six keys. Click a cap or press its letter. The macOS host loads the same page into its floating panel as `/?popup=1&native=1`.
+Knowing that VS Code is open is easy. Knowing that the user just ran a test, got an error, and would probably benefit from a “Fix” or “Explain” button is much harder.
 
-On macOS, to run it as a login service with foreground-app tracking, and to install the VS Code extension:
+That’s why we ended up focusing heavily on developers and building a VS Code extension. It gave us much better context about what the user was actually doing instead of just knowing which window was in focus.
 
-```sh
-native/install-macos.sh
-native/install-vscode.sh
-```
+Another challenge was making the keyboard useful outside of the few programs we had time to build integrations for.
 
-Reload VS Code once after installing. `native/uninstall-macos.sh` stops the login launch.
+We didn’t want Keymaeleon to only work with a small list of supported apps, so we added a system that detects the active window and can use the OpenAI API to come up with useful controls for unfamiliar applications.
 
-With no project configured, the backend waits. Focus a VS Code window and the extension offers that workspace; the backend adopts it and the keys switch from app-launch to project actions.
+That gave us a way to make the keyboard useful in a lot more situations without manually building a profile for every program.
 
-### Configuration — `six.config.json`
+## Accomplishments that we're proud of
 
-| Key | Meaning |
-|---|---|
-| `root` | Project directory, or `null` to adopt the first focused VS Code workspace |
-| `command` | Test command as an executable/argument array, e.g. `["npm","test"]`. `null` disables the test keys with a reason |
-| `requireForeground` | Require a focused VS Code window before adopting a workspace |
-| `codexModel` | Model passed to the Codex CLI |
-| `timeoutMs` | Test-run timeout, default 60000 |
+The part we’re most proud of is that Keymaeleon actually exists as working hardware.
 
-`SIX_CONFIG=/abs/path.json npm start` selects another config; `PORT=5174` changes the port. Restart after editing.
+It’s not just a mockup of what an adaptive keyboard could look like. The physical keys really update while you use the computer, and their functions can change in the middle of a workflow.
 
-The bundled test runner expects TAP (`node --test --test-reporter=tap`). Exit zero is a pass; a nonzero exit **with** a TAP failure total is a test failure; any other nonzero exit is reported as a runner error rather than mislabelled as a failing test. Other formats need an adapter before that distinction holds.
+Seeing a real key change from something like “Run Tests” to “Fix” after an error happens is probably the moment where the project started to feel real.
 
-## API
+## What we learned
 
-Loopback only. `Host` and `Origin` are validated, `sec-fetch-site: cross-site` is rejected, and every POST requires the per-process session token from `GET /api/context`.
+A big thing we learned is that more options don’t automatically make an interface better.
 
-| Endpoint | Purpose |
-|---|---|
-| `GET /api/context` | Current context snapshot + session token |
-| `GET /api/events` | Server-sent events; one message per context revision |
-| `GET /api/health` | Liveness + selected project |
-| `POST /api/key` | Press slot 0–5 against a `layout_revision` |
-| `POST /api/action` | Invoke an action by ID against a `revision` |
-| `POST /api/system/context` | Foreground-app report from the native host |
-| `POST /api/editor/context` | Editor heartbeat from the extension; returns queued commands |
-| `POST /api/editor/ack` | Extension acknowledges a command completed or failed |
-| `POST /api/surface/focus` | Display-client focus, so a browser-hosted display doesn't read as "Chrome focused" |
+At first, it was tempting to put as many actions as possible on the keyboard. But the more useful version was usually the one that showed a small number of actions that made sense right now.
 
-Presses carry the layout revision they were drawn from. If the context moved between render and press, the backend returns **409** rather than firing the action the user no longer sees. Action IDs are matched against an allowlist; the client never supplies a command.
+We also learned a lot of very different things while building this: VS Code extensions, serial communication, USB HID, OLED rendering, WebSockets, and how to use AI in a way that’s constrained enough to produce predictable controls instead of random suggestions.
 
-## Deliberate limits
+## What's next for Keymaeleon
 
-- **The display client is deliberately minimal.** It draws six caps, a connection dot, the active app, and the reason the current layer won. It holds no state of its own — it re-runs the same `live.js` over the published context, so what it draws is exactly what a press will dispatch. It is a stand-in for key-cap displays, not a dashboard.
-- **No physical hardware yet.** `POST /api/key` already takes a numbered slot, which is the interface a controller will use.
-- **The agent terminal is read-only** and the CLI's approval requests are not yet observed, so there is no genuine Accept/Reject key. See [PLAN.md](PLAN.md), milestone 2.
-- **No commit, stage, or push.** Git access is strictly read-only; nothing here stages, commits, pushes, or invokes an external diff tool.
-- The native host is **macOS-only**. The backend and extension are not.
-- The file watcher polls once per second, hashes file contents, skips symlinks and generated folders, and refuses projects over 10,000 files. Fine for a laptop project; a large repository needs a real watcher.
-- One project and one test process at a time. Backend restarts reset run history.
-- Voice transcription runs locally through FFmpeg and Whisper and requires both on `PATH`. A transcript is never sent anywhere on its own — it is inserted into the terminal **without** pressing Enter, so the developer reads it first.
+There are a lot of directions we’d like to take it.
 
-## Layout
+We want to go deeper on developer workflows with better Git and debugging controls, more Codex integration, and things like Sentry-powered incident workflows.
 
-```
-server/index.js     HTTP surface, origin/token checks, SSE fan-out, action routing
-server/runtime.js   Context ownership, Git reads, fingerprinting, test process lifecycle
-server/editor.js    VS Code session bridge: heartbeat, command queue, path confinement
-server/agents.js    Codex/Claude transcript observation → agent lifecycle facts
-server/voice.js     FFmpeg capture → Whisper transcription → explicit review
-live.js             Layer resolution: situation → six keys, with reasons and disabled states
-index.html app.js style.css   Display client: draws the caps, streams events, posts presses
-vscode-extension/   Editor context source and command executor
-native/             macOS foreground-app host, LaunchAgent installer, build scripts
-test/               27 tests over the above
-```
+We’d also like to improve browser awareness and make automatically generated profiles for unsupported applications more capable.
 
-See [PLAN.md](PLAN.md) for the full situation→key map and the staged milestones.
+And, eventually, we want to try larger keyboard layouts.
+
+The main idea would stay the same though: instead of having one fixed keyboard for every task, the keyboard should change with what you’re doing.
+
+
