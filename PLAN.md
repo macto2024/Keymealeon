@@ -102,13 +102,22 @@ It is a fallback, not the plan. The difference matters: the beats it replays are
 
 Full run twice without a reset. Time each beat against the sheet.
 
-## Deferred to hardware
+## Hardware — built, not yet run on the device
 
-Not needed for the demo, and cheaper once the above is settled.
-
-- **Icon generator.** Rewrite the missing `tools/generate_six_icons.py`, emitting `Icons6.h` plus `assets/icons_6.json`. Preserve the 20 existing bitmaps byte-for-byte; add roughly thirteen for the developer actions (problem, diff, check, cross, sparkle, list, terminal, branch, push, devtools, console, context, more). Format is confirmed: 64×32, 8 bytes per row, LSB-first.
-- **Firmware `SETK6 <revision> <i0>…<i5>`.** Per-key icon IDs alongside the existing `SET6` profile command, which keeps working. A parser addition and an indirection in the draw call; mailboxes, wave animation and bus isolation untouched. `HELLO` gains a `COMPANION_2` token so a host can tell the firmwares apart.
-- **Python companion, rewritten as a backend client.** Subscribe to `/api/events`, map action IDs to icon IDs via the generated manifest, drive serial, post presses to `/api/key`. Port `Controller`'s revision and sequence discipline as-is. Keep the Tkinter simulator — it previews real pictograms and waves without hardware.
+- **Icon generator — DONE.** `tools/generate_six_icons.py` recovers the 21 shipping pictograms from
+  the existing header byte for byte and never redraws them, then draws 13 new ones from vector
+  primitives with no third-party dependency. Verified: all 21 preserved, `sixProfiles` identical.
+- **Firmware `SETK6` — DONE, unflashed.** Per-key icon ids beside the existing `SET6`, which expands
+  a profile into the same six-icon array so there is one draw path. `HELLO` now answers
+  `COMPANION_2`. The parser was extracted and compiled standalone: 11 cases, including out-of-range
+  ids, negative ids, reserved revision 0, short lines and trailing garbage.
+- **Bridge — DONE.** `companion/keymaeleon_bridge.py`. Stdlib only; serial through `termios`.
+  Verified end to end against a pty firmware: handshake, capability refusal, 500 ms resend, press
+  round trip that advanced the backend a page, and a stale press correctly refused with 409.
+- **The backend now publishes the resolved layout.** A display must never re-derive which six keys
+  to show, or the keyboard and the browser client drift.
+- **Still to do on the device:** flash it, confirm `COMPANION_2`, confirm all six caps render, and
+  confirm a physical press reaches the backend. Nothing here has touched real hardware.
 - **The X11 action layer now fits.** `keymaeleon_6.py` shells out to `xdotool`, `pactl`, `playerctl` and `nautilus`, which is exactly right on Linux. Moving the demo off macOS turned this from a rewrite into a port.
 - **`keymaeleon.py`.** Missing, and imported by `keymaeleon_6.py`. Ask Michael whether it exists elsewhere before rewriting; its `Focus` and `classify` are worth reading even though the X11 parts get replaced.
 

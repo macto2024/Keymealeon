@@ -50,11 +50,11 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
     if (url.pathname === '/api/browser/report') return browserReport(req, res, json);
     if (!origins.has(`http://${req.headers.host}`) || (req.headers.origin && !origins.has(req.headers.origin)) || req.headers['sec-fetch-site'] === 'cross-site') return json(403, { error: 'Local same-origin clients only.' });
-    if (req.method === 'GET' && url.pathname === '/api/context') return json(200, { context: runtime.context, token: runtime.token });
+    if (req.method === 'GET' && url.pathname === '/api/context') return json(200, { context: runtime.context, keys: runtime.layout(), token: runtime.token });
     if (req.method === 'GET' && url.pathname === '/api/health') return json(200, { ok: true, project: config.root });
     if (req.method === 'GET' && url.pathname === '/api/events') {
       res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
-      res.write(`data: ${JSON.stringify({ context: runtime.context, token: runtime.token, message: 'Live backend connected' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ context: runtime.context, keys: runtime.layout(), token: runtime.token, message: 'Live backend connected' })}\n\n`);
       clients.add(res); const heartbeat = setInterval(() => res.write(': heartbeat\n\n'), 15000);
       req.on('close', () => { clients.delete(res); clearInterval(heartbeat); }); return;
     }

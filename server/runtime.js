@@ -43,17 +43,26 @@ export class Runtime extends EventEmitter {
       git: { available: false, dirty: false, changed_files: 0 }, agent: emptyAgentFact(), browser: emptyBrowserFact(), tests: { state: 'idle', output: '', stale: false }, test_command_available: Boolean(config.command?.length), recent_actions: [], watcher_error: null };
     this.token = randomUUID();
   }
+  /** The six keys for the current context, or six nulls if resolution fails. */
+  layout() {
+    try { return liveLayout(this.context, this.context.keyboard.page); } catch { return [null, null, null, null, null, null]; }
+  }
   publish(message) {
     const tests = this.context.tests;
     const agent = this.context.agent || {};
     const reviewable = agent.state === 'idle' && agent.patched_files?.length && this.context.git.dirty;
     this.context.workflow_state = tests.state === 'running' ? 'tests_running' : agent.state === 'working' || this.context.keyboard.mode === 'agent' ? 'codex_working' : reviewable ? 'codex_review' : tests.stale ? 'coding' : ({ passed: 'tests_passed', failed: 'tests_failed' })[tests.state] ?? 'coding';
     this.context.revision++;
+    // Resolve the layout once, here, and publish it. A display must never re-derive which six
+    // keys to show: the browser client and the keyboard would drift, and a cap would eventually
+    // disagree with the action its own press dispatches.
+    let keys = null;
     try {
-      const signature = JSON.stringify(liveLayout(this.context, this.context.keyboard.page).map(key => key && [key.id, key.disabled]));
+      keys = liveLayout(this.context, this.context.keyboard.page);
+      const signature = JSON.stringify(keys.map(key => key && [key.id, key.disabled]));
       if (signature !== this.layoutSignature) { this.layoutSignature = signature; this.context.keyboard.layout_revision++; }
     } catch { this.context.keyboard.layout_revision++; }
-    this.emit('snapshot', { context: this.context, message });
+    this.emit('snapshot', { context: this.context, keys, message });
   }
   async git(args) { return (await exec('git', ['-C', this.config.root, ...args], { timeout: 5000, maxBuffer: 1024 * 1024, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } })).stdout; }
   async refresh() {

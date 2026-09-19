@@ -10,6 +10,7 @@
 #include "IsolatedDisplay.h"
 #include "freertos/semphr.h"
 #include <stdarg.h>
+#include <string.h>
 
 // Physical layout: 1 2 3 / 4 5 6. App-aware serial companion; actions execute on the host, no HID.
 constexpr uint8_t KEY_COUNT = 6;
@@ -64,7 +65,7 @@ struct Button {
   bool raw = HIGH, stable = HIGH;
   uint32_t changed = 0;
 } buttons[KEY_COUNT];
-struct Layout { uint32_t revision; uint8_t profile; };
+struct Layout { uint32_t revision; uint8_t icons[KEY_COUNT]; };
 QueueHandle_t layoutQueue[2] = {nullptr, nullptr};
 Layout activeLayout[2] = {}; // Worker-owned.
 std::atomic<uint32_t> shownRevision[6];
@@ -190,7 +191,7 @@ void render(uint8_t row, uint8_t channel) {
   uint32_t previousErrors = s.errors.load();
   uint32_t now = millis();
   // Actual elapsed time keeps speed fixed even if bus traffic delays a frame.
-  d.wave.frame(now, r.bitmap, sixProfiles[activeLayout[row].profile][row*3+channel]);
+  d.wave.frame(now, r.bitmap, sixIcons[activeLayout[row].icons[row*3+channel]]);
   r.oled->clearBuffer();
   r.oled->drawXBMP(0, 0, 64, 32, r.bitmap);
   uint32_t start = micros();
@@ -295,7 +296,7 @@ void displayWorker(void *argument) {
   for (;;) {
     Layout layout;
     if (xQueueReceive(layoutQueue[row], &layout, 0) == pdTRUE) {
-      if (layout.revision != activeLayout[row].revision || layout.profile != activeLayout[row].profile) {
+      if (layout.revision != activeLayout[row].revision || memcmp(layout.icons, activeLayout[row].icons, KEY_COUNT) != 0) {
         activeLayout[row] = layout;
         for (auto &display : r.displays) display.dirty = true;
       }
@@ -345,9 +346,24 @@ void sampleButtons() {
 }
 void command(const char *text) {
   unsigned long revision; int profile; char trailing;
+  int icon[KEY_COUNT];
+  // Per-key layout: the host names an icon for every cap. Contextual layouts are one-off
+  // combinations that the six fixed profiles cannot express.
+  if (sscanf(text, "SETK6 %lu %d %d %d %d %d %d %c", &revision,
+             &icon[0], &icon[1], &icon[2], &icon[3], &icon[4], &icon[5], &trailing) == 7 && revision > 0) {
+    // Validate every id before touching the layout, so a malformed line cannot half-apply.
+    for (uint8_t key = 0; key < KEY_COUNT; ++key)
+      if (icon[key] < 0 || icon[key] >= sixIconCount) { logLine("ERROR SETK6 icon out of range\n"); return; }
+    Layout layout; layout.revision = uint32_t(revision);
+    for (uint8_t key = 0; key < KEY_COUNT; ++key) layout.icons[key] = uint8_t(icon[key]);
+    for (uint8_t row=0; row<2; ++row)
+      if (layoutQueue[row]) xQueueOverwrite(layoutQueue[row], &layout);
+    companionActive = true; lastLayout = millis(); return;
+  }
   if (sscanf(text, "SET6 %lu %d %c", &revision, &profile, &trailing) == 2 &&
       revision > 0 && profile >= 0 && profile < 6) {
-    Layout layout = {uint32_t(revision), uint8_t(profile)};
+    Layout layout; layout.revision = uint32_t(revision);
+    for (uint8_t key = 0; key < KEY_COUNT; ++key) layout.icons[key] = sixProfileIcons[profile][key];
     for (uint8_t row=0; row<2; ++row)
       if (layoutQueue[row]) xQueueOverwrite(layoutQueue[row], &layout);
     companionActive = true; lastLayout = millis(); return;
@@ -375,7 +391,7 @@ void command(const char *text) {
     xQueueSend(debugQueue[1], &debug, 0);
     return;
   }
-  if (!strcmp(text, "HELLO")) logLine("KEYMAELEON6 DUAL_I2C COMPANION_1 WAVE 8 120\n");
+  if (!strcmp(text, "HELLO")) logLine("KEYMAELEON6 DUAL_I2C COMPANION_1 COMPANION_2 WAVE 8 120\n");
   else if (!strcmp(text, "STATS")) {
     for (uint8_t row=0; row<2; ++row)
       logLine("MODE BUS %u PAUSED %u HZ %lu\n", row, paused[row] ? 1 : 0, (unsigned long)busHz[row].load());
@@ -427,7 +443,7 @@ void setup() {
 void loop() {
   if (companionActive && uint32_t(millis() - lastLayout) > 1500) {
     companionActive = false;
-    Layout idle = {0, 0};
+    Layout idle = {0, {0, 0, 0, 0, 0, 0}};
     for (uint8_t row=0; row<2; ++row)
       if (layoutQueue[row]) xQueueOverwrite(layoutQueue[row], &idle);
   }
