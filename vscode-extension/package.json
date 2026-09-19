@@ -1,0 +1,22 @@
+{
+  "name": "six-workflow-bridge",
+  "displayName": "SIX Workflow Bridge",
+  "description": "Connect local VS Code editor context to the SIX keyboard.",
+  "version": "0.2.0",
+  "publisher": "six-local",
+  "engines": { "vscode": "^1.85.0" },
+  "main": "./extension.cjs",
+  "activationEvents": ["onStartupFinished"],
+  "capabilities": { "untrustedWorkspaces": { "supported": false }, "virtualWorkspaces": false },
+  "contributes": {
+    "commands": [
+      { "command": "six.connect", "title": "SIX: Connect to Local Backend" },
+      { "command": "six.disconnect", "title": "SIX: Disconnect" },
+      { "command": "six.openSimulator", "title": "SIX: Open Keyboard" }
+    ],
+    "configuration": {
+      "title": "SIX",
+      "properties": { "six.backendUrl": { "type": "string", "default": "http://127.0.0.1:5173", "scope": "machine", "description": "Local SIX backend URL (loopback HTTP only)." } }
+    }
+  }
+}

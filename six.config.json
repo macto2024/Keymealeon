@@ -1,0 +1,7 @@
+{
+  "root": null,
+  "requireForeground": true,
+  "codexModel": "gpt-5.5",
+  "command": null,
+  "timeoutMs": 60000
+}

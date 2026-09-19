@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [{
+    "name": "Test Keymeleon VS Code extension",
+    "type": "extensionHost",
+    "request": "launch",
+    "args": ["--extensionDevelopmentPath=${workspaceFolder}/vscode-extension", "${input:project}"]
+  }],
+  "inputs": [{
+    "id": "project",
+    "type": "promptString",
+    "description": "Absolute path to the project folder the Extension Development Host should open",
+    "default": "${workspaceFolder}"
+  }]
+}

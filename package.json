@@ -1,0 +1,11 @@
+{
+  "name": "keymeleon",
+  "version": "0.3.0",
+  "private": true,
+  "description": "Context-aware six-key backend: observes VS Code, Git, test runs, and coding-agent sessions, and resolves which six actions the developer most likely needs next.",
+  "type": "module",
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test test/*.test.js"
+  }
+}
