@@ -1,79 +1,183 @@
-# Keymeleon VS Code extension
+# Keymaeleon VS Code extension
 
-The extension is one of the two context sources for the backend. It reports the active project file, language, selection size, unsaved-file count, and diagnostics to the local backend over loopback HTTP, and executes the small set of editor commands the backend sends back.
+The extension is the eyes and hands of the keyboard inside the editor. It reports what you are
+doing to the local backend, and executes the editor actions the backend sends back.
 
-It does not send source text or selection text anywhere. The coding-agent CLI launched in its terminal can read project files when you ask it to — that is the CLI's own access, not this bridge's.
+It works entirely against the simulated keyboard — a six-key display in the browser, or the caps
+drawn in a terminal. No hardware is needed to develop, run, or test any of it.
 
-The extension keeps the identifier `six-workflow-bridge` and the `six.*` command namespace from the project's earlier internal name. Renaming would break installed copies and the backend's command contract.
+## There is no build step
+
+This is deliberate. The extension is plain CommonJS — no TypeScript, no bundler, no `npm install`,
+no compile. Two files:
+
+```
+vscode-extension/
+  package.json     manifest: commands, settings, activation
+  extension.cjs    the whole extension, ~183 lines
+```
+
+Edit `extension.cjs`, reload the window, done. At a hackathon, a build step is a thing that breaks
+at midnight.
+
+## Requirements
+
+- **VS Code 1.85+** and **Node 18+**
+- A **local, trusted** workspace folder. The extension refuses to run in an untrusted workspace or
+  a virtual/remote one, because it executes commands and reads file paths.
+- The backend running on `http://127.0.0.1:5173`
 
 ## Install
 
-For normal use on macOS:
+### For normal use
 
 ```sh
 native/install-vscode.sh
 ```
 
-Reload VS Code once. Open any local folder — an empty one is fine — and focus its window. With the backend running, the status bar shows **SIX: connected** and the first focused workspace becomes the project.
+Copies `package.json` and `extension.cjs` into `~/.vscode/extensions/six-local.six-workflow-bridge-0.2.0`.
+Then reload VS Code once — **Ctrl+Shift+P → Developer: Reload Window**.
 
-## Test it in isolation
+Re-run the script and reload again after every change to `extension.cjs`.
 
-1. Run `npm start` in this repository and leave it running.
-2. Open this repository in VS Code.
-3. In Run and Debug, choose **Test Keymeleon VS Code extension** and press **F5**. You are prompted for the project folder the Extension Development Host should open — point it at any small local project with a test command. No build step is needed.
-
-Or directly:
+### For development
 
 ```sh
-code --new-window --extensionDevelopmentPath="$PWD/vscode-extension" /path/to/some/project
+code --new-window --extensionDevelopmentPath="$PWD/vscode-extension" /path/to/any/project
 ```
 
-Set `command` in `six.config.json` to that project's test command (e.g. `["npm","test"]`) if you want the test keys enabled.
+Or open this repo in VS Code, press **F5**, and pick a project folder when prompted. You get a
+separate Extension Development Host window with a debugger attached and breakpoints in
+`extension.cjs`. The extension loads **only** in that window.
 
-The extension loads in the development window only.
+## Run it
 
-## Checks
+```sh
+npm start                    # the backend, from the repo root
+code ~/some/git/project      # any local folder; a git repo root gets the Git keys too
+```
 
-| Test | Action | Expected |
-|---|---|---|
-| Active file | Switch between two files | The backend reports the selected filename and language |
-| Selection | Select several lines | The backend reports the selection's line count |
-| Unsaved edits | Type without saving | Run Tests is disabled with *"Save your VS Code files before running tests."* |
-| Saved edits | Save | Run Tests becomes available; previous results go stale |
-| Open file | `K` twice, then `U` | VS Code opens the reported file |
-| Editor diff | Second More page, `I` | VS Code opens Git HEAD versus the current document |
-| Diagnostics | Introduce a syntax error | Diagnostic count appears; More → `O` opens Problems |
-| Real test loop | Break an assertion, save, Run Tests | Real output and a real nonzero exit; fix and rerun to pass |
-| Disconnect | **SIX: Disconnect** | The backend marks the editor disconnected within about six seconds |
-| Reconnect | **SIX: Connect to Local Backend** | Context and editor actions return |
+Then pick a display — either is fine:
 
-Undo any temporary error afterwards. `U/I/O/J/K/L` typed in VS Code remain ordinary typing — they are only shortcuts in a focused display client.
+```
+http://127.0.0.1:5173                                  six keys in the browser
+python3 companion/keymaeleon_bridge.py --simulate      the caps, drawn in a terminal
+```
 
-## Terminals it opens
+The status bar should read **SIX: connected**, with the adopted project path as its tooltip.
 
-| Terminal | Contents |
+Because `root` is `null` in `six.config.json`, the backend adopts whichever VS Code window you
+focus, so you can switch projects just by focusing a different window.
+
+## Confirm it is working
+
+| Do this | Expect |
 |---|---|
-| `SIX Terminal` | Interactive shell rooted in the project |
-| `SIX Tests` | The backend's actual test output; Ctrl+C requests cancellation of the backend process |
-| `SIX Git` | Fixed `git --no-pager diff` / `log` commands, project-scoped |
-| `SIX Codex` / `SIX Claude` | The interactive agent CLI, with the model from `six.config.json` |
+| Focus the window | keys become `Run Tests · Git Diff · Output · Codex in Terminal · More · Context` |
+| Type without saving | **`U` dims** — *"Save your VS Code files before running tests."* |
+| Ctrl+S | `U` lights up |
+| Select several lines | backend reports the selection's line count |
+| Introduce a syntax error | diagnostic count appears; More → `O` opens Problems |
+| **SIX: Disconnect** | backend marks the editor disconnected within ~6 seconds |
+| **SIX: Connect to Local Backend** | context and actions return |
 
-Commands you type yourself in these terminals are independent and do not drive the backend's test state. Git actions never stage or commit.
+The dimmed key is the one to check first. It proves the whole chain: the editor saw an unsaved
+buffer, the backend refused to run tests against files that are not on disk, and the key said why
+instead of failing silently when pressed.
 
-The agent terminal currently starts the CLI with `--sandbox read-only`, so it proposes rather than applies. That is why there is no Accept/Reject key yet — see milestone 2 in [PLAN.md](../PLAN.md). The extension cannot confirm the CLI finished authenticating or produced a response; check the terminal for that.
+## How it talks to the backend
 
-## Diff behavior
+A one-second heartbeat, plus a 200 ms debounced tick on editor events (active file, selection,
+save, close, diagnostics, terminal close).
 
-`Editor Diff` compares HEAD with the current editor document, including unsaved edits. `Git Diff` runs `git --no-pager diff` in a terminal and therefore shows tracked unstaged changes only, omitting untracked files, exactly as ordinary `git diff` does. In a repository with no commits, untracked files compare against an empty baseline and show as entirely new.
+```
+  extension                                backend
+      │  GET  /api/context                    │   once, to fetch the session token
+      │──────────────────────────────────────►│
+      │  POST /api/editor/context             │   every second: state, and any queued commands back
+      │──────────────────────────────────────►│
+      │◄───────── { commands: [...] } ────────│
+      │  POST /api/editor/ack                 │   after each command: done, or the error
+      │──────────────────────────────────────►│
+```
+
+Commands are **acknowledged**, so the backend never reports success merely because it dispatched
+something. If VS Code could not open the file, the key reports that.
+
+### What it reports
+
+```js
+focused              active_file          language
+has_selection        selection_lines      unsaved_files
+agent_terminal_open  diagnostics[{ file, line, severity, message }]
+agent_terminal_supported  external_actions_supported  voice_supported
+```
+
+Paths are workspace-relative and confined to the adopted root. Source text and selection contents
+are never sent anywhere — only counts, names and diagnostic messages.
+
+The `*_supported` flags exist so a key can stay **disabled with a reason** when you are running an
+older extension, rather than appearing to work and doing nothing.
+
+### What it executes
+
+| Command | Effect |
+|---|---|
+| `editor_open` · `editor_diff` · `editor_problem` | open a file, diff against Git HEAD, jump to a diagnostic |
+| `editor_terminal` · `editor_test_output` | `SIX Terminal`; `SIX Tests` showing real backend output |
+| `editor_problems` · `editor_focus` · `editor_context` | Problems panel, editor group, the SIX output channel |
+| `editor_git_diff` · `editor_git_log` | fixed Git commands in a project-scoped `SIX Git` terminal |
+| `editor_agent_launch` · `editor_agent_focus` | open or reveal `SIX Codex` / `SIX Claude` |
+| `editor_agent_insert` | **type text into the agent terminal without pressing Enter** |
+
+`editor_agent_insert` is the interesting one. It is how a key can carry a failing test or an error
+message into the agent's prompt while still leaving the human to read it and hit Enter.
+
+## Settings and commands
+
+| Setting | Default |
+|---|---|
+| `six.backendUrl` | `http://127.0.0.1:5173` — loopback HTTP only |
+
+| Command palette | |
+|---|---|
+| `SIX: Connect to Local Backend` | reconnect after an error |
+| `SIX: Disconnect` | stop reporting |
+| `SIX: Open Keyboard` | open the six-key display in a browser |
+
+## Adding a key
+
+The extension is usually the *last* thing you touch, because most of a new key is backend work.
+
+1. **`live.js`** — add the action id to a layer's `ids`, a label and icon in `present()`, and a
+   reason in `unavailable()` for when it cannot fire.
+2. **`server/runtime.js`** — add the id to the `allowed` list in `action()` and route it.
+3. **`extension.cjs`** — only if it needs something new from the editor. Add a branch in
+   `execute()`, and report any new state from `state()`.
+4. **`tools/generate_six_icons.py`** — add the action to `ACTION_ICONS` so the physical cap has a
+   pictogram. Unmapped actions log a warning and render blank rather than showing a wrong symbol.
+
+A key must not appear enabled unless the integration behind it exists and the action will really
+happen. Everything else is disabled with its reason.
 
 ## Troubleshooting
 
-- **Backend unavailable** — start `npm start`. On another port, set `six.backendUrl` in VS Code settings to the matching loopback URL.
-- **Wrong folder** — the workspace must match the root in `six.config.json`, unless `root` is `null` and the backend is adopting the first focused window.
-- **No active file** — open a regular file inside the project. Virtual documents and files outside the root are excluded.
-- **No diagnostics** — this depends on the language service. A syntax error is a reliable check; semantic type checking is not enabled by this extension.
-- **Another window connected** — run **SIX: Disconnect** in the other window, wait six seconds, connect this one.
-- **Keys stay disabled after an update** — reload the window. New keys remain disabled until the extension reports support for them.
-- **Details** — VS Code's Output panel, channel **SIX**.
+- **Stuck on "connecting"** — the backend is not running, or `six.backendUrl` points at the wrong
+  port. Hover the status bar for the actual error, or open Output → **SIX**.
+- **"Open this project folder in VS Code: /path"** — the backend already adopted a different
+  folder. Open that one, or restart the backend to release it.
+- **"Open a local project folder in VS Code"** — no file-scheme workspace folder. A loose file or
+  an untitled window is not enough.
+- **Keys stay disabled after an update** — reload the window. New keys stay disabled until the
+  extension reports support for them, which is the intended behaviour.
+- **No diagnostics** — that depends on the language service. A syntax error is a reliable check;
+  semantic type checking is not enabled by this extension.
+- **"Another VS Code window is connected"** — run **SIX: Disconnect** in the other window, wait six
+  seconds, then connect this one.
+- **Changes to `extension.cjs` do nothing** — re-run `native/install-vscode.sh` and reload, or use
+  the Extension Development Host, which picks up changes on restart.
 
-Trusted local file workspaces only. Remote SSH, virtual workspaces, debugger control, and global keyboard shortcuts are out of scope for this milestone.
+## Scope
+
+Trusted local file workspaces only. Remote SSH, virtual workspaces, debugger control and global
+keyboard shortcuts are out of scope for this milestone.
