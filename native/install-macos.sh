@@ -11,9 +11,7 @@ launchctl bootout "gui/$(id -u)/com.six.keyboard" 2>/dev/null || true
 rm -rf "$runtime/SixHost.app"
 cp -R "$root/native/bin/SixHost.app" "$runtime/SixHost.app"
 cp "$root/server/"*.js "$runtime/server/"
-cp "$root/live.js" "$root/six.config.json" "$runtime/"
-# A display client (index.html, style.css, app.js) is not part of this backend repository. Copy one
-# into "$runtime" if you want the native monitor WebView to render keys rather than a 404.
+cp "$root/live.js" "$root/app.js" "$root/index.html" "$root/style.css" "$root/six.config.json" "$runtime/"
 agent="$HOME/Library/LaunchAgents/com.six.keyboard.plist"
 mkdir -p "$HOME/Library/LaunchAgents" "$HOME/Library/Logs/SIX"
 python3 - "$agent" "$runtime/SixHost.app/Contents/MacOS/SixHost" "$node" "$runtime" "$HOME/Library/Logs/SIX" "$ffmpeg" "$whisper" "$PATH" <<'PY'

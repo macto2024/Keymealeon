@@ -2,7 +2,7 @@
 
 Six mechanical keys whose functions change with what the developer is actually doing.
 
-This repository holds the **backend**: the service that observes real developer state, decides which six actions are most likely useful right now, and executes the one that gets pressed. It ships with the two programs that feed it context — a VS Code extension and a macOS foreground-app host. The physical keyboard and the key display are not in this repository.
+This repository holds the **backend**: the service that observes real developer state, decides which six actions are most likely useful right now, and executes the one that gets pressed. It ships with the two programs that feed it context — a VS Code extension and a macOS foreground-app host — and a minimal display client that draws the six keys. The physical keyboard is not in this repository.
 
 The central bet is that a six-key surface is only worth having if the keys are *right*, and keys are only right if the system knows what just happened. So this backend does not guess from a script. It reads the working tree, the editor's diagnostics, the exit status of a real test process, and the coding agent's own session transcript, and it derives the layout from those facts.
 
@@ -55,9 +55,11 @@ The post-agent review layer is the one to watch in a demo. Ask Codex for a chang
 Node 18+. No dependencies to install.
 
 ```sh
-npm start     # backend on http://127.0.0.1:5173
+npm start     # backend + display client on http://127.0.0.1:5173
 npm test      # 27 tests: runtime, editor bridge, agent observer, layers, keyboard, voice
 ```
+
+Open http://127.0.0.1:5173 for the six keys. Click a cap or press its letter. The macOS host loads the same page into its floating panel as `/?popup=1&native=1`.
 
 On macOS, to run it as a login service with foreground-app tracking, and to install the VS Code extension:
 
@@ -104,7 +106,7 @@ Presses carry the layout revision they were drawn from. If the context moved bet
 
 ## Deliberate limits
 
-- **No display client in this repository.** The backend serves `/`, `/app.js`, `/style.css` from disk if present, and `live.js` so a client can render the same layer the backend resolved. With none installed, `/` returns a 404 explaining that and the API keeps working — so the macOS monitor's WebView will be blank until a display is added.
+- **The display client is deliberately minimal.** It draws six caps, a connection dot, the active app, and the reason the current layer won. It holds no state of its own — it re-runs the same `live.js` over the published context, so what it draws is exactly what a press will dispatch. It is a stand-in for key-cap displays, not a dashboard.
 - **No physical hardware yet.** `POST /api/key` already takes a numbered slot, which is the interface a controller will use.
 - **The agent terminal is read-only** and the CLI's approval requests are not yet observed, so there is no genuine Accept/Reject key. See [PLAN.md](PLAN.md), milestone 2.
 - **No commit, stage, or push.** Git access is strictly read-only; nothing here stages, commits, pushes, or invokes an external diff tool.
@@ -122,6 +124,7 @@ server/editor.js    VS Code session bridge: heartbeat, command queue, path confi
 server/agents.js    Codex/Claude transcript observation → agent lifecycle facts
 server/voice.js     FFmpeg capture → Whisper transcription → explicit review
 live.js             Layer resolution: situation → six keys, with reasons and disabled states
+index.html app.js style.css   Display client: draws the caps, streams events, posts presses
 vscode-extension/   Editor context source and command executor
 native/             macOS foreground-app host, LaunchAgent installer, build scripts
 test/               27 tests over the above
