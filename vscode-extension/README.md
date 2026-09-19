@@ -85,6 +85,85 @@ The dimmed key is the one to check first. It proves the whole chain: the editor 
 buffer, the backend refused to run tests against files that are not on disk, and the key said why
 instead of failing silently when pressed.
 
+## Every key, in every situation
+
+Generated from `live.js`, which is the code that actually decides. Letters never move; labels do.
+Exactly one row is active at a time, and the backend publishes which one plus the reason it won.
+
+| Situation | U | I | O | J | K | L |
+|---|---|---|---|---|---|---|
+| **Editing the project** | Run Tests | Git Diff | Output | Codex in Terminal | More | Context |
+| ↳ More, page 2 | Terminal | Test Output | Problems | VS Code | More | Back |
+| ↳ More, page 3 | Open File | Editor Diff | Git Log | Context | More | Back |
+| **Tests running** | Output | Stop Tests | Git Diff | Codex in Terminal | More | Context |
+| **Tests failed** | Run Tests | Git Diff | Output | Codex in Terminal | More | Context |
+| **Tests passed** | Git Diff | Run Tests | Output | Codex in Terminal | More | Context |
+| **Agent working** | Codex Terminal | Git Diff | Problems | Output | More | Context |
+| **Agent finished, tree dirty** | Editor Diff | Run Tests | Git Diff | Problems | More | Context |
+| **Agent terminal open** | Codex Terminal | Run Tests | Problems | Talk to Agent | More | Project Keys |
+| ↳ More | Open File | Editor Diff | Test Output | Git Diff | More | Project Keys |
+| **Another app focused** | VS Code | Codex | Chrome | Terminal | More | Finder |
+| ↳ More | Terminal | Finder | Context | Chrome | More | Back |
+| **Recording** | Stop & Transcribe | Cancel | — | — | — | — |
+| **Transcribing** | Transcribing | Cancel | — | — | — | — |
+| **Transcript ready** | Insert in Terminal | Review Text | Record Again | Cancel | — | — |
+
+A few of these are worth reading closely.
+
+**Agent finished, tree dirty** is the one to watch. `U` is a diff of the *specific file* the agent
+patched, passed through as a parameter, not a generic diff. It appears only when the agent's own
+session transcript says its turn completed **and** Git sees a dirty tree.
+
+**Voice layers take all six slots** and disable the ones they do not use, because a recording must
+not be displaced by you clicking a different file. `Cancel` is always reachable.
+
+**Tests failed and Editing currently show the same six keys.** Only the reason differs — *"Tests
+failed with exit 1"* versus *"Editing the connected project"*. The failure layer exists but does not
+yet reorganise around the failure; `First Failure` and `Rerun` are not built. Worth knowing before
+you demo it.
+
+## Which layer wins
+
+An ordered chain in `resolveLayer`; the first match wins. No scoring, no model.
+
+```
+1.  voice is recording / transcribing / ready    an explicit operation owns the keys
+2.  another app is focused                       app-launch keys
+3.  the agent terminal is open                   agent layer
+4.  you pressed K                                More pages
+5.  a test process is running
+6.  the agent reports a turn in flight
+7.  the agent finished AND the tree is dirty     ← review what it changed
+8.  tests failed, and the result is current
+9.  tests passed, and the result is current
+10. otherwise                                    ordinary editing
+```
+
+The order encodes one rule: **an in-flight operation outranks a result, and a result outranks
+ordinary editing.** A running test cannot be displaced by you opening another file. And "current"
+matters — save a file after a run and the result goes stale, so rules 8 and 9 stop matching and you
+fall through to editing.
+
+## Every reason a key can be dimmed
+
+A key that cannot fire keeps its slot and says why. It is never hidden, and never silently dead.
+
+| Cause | Key | Reason shown |
+|---|---|---|
+| Unsaved files in the editor | U — Run Tests | *"Save your VS Code files before running tests."* |
+| No test command configured | U — Run Tests | *"No test command configured for this project."* |
+| Folder is not a Git repository root | I — Git Diff | *"The selected project has no usable Git repository."* |
+| Extension disconnected | U, I, O, L | *"Connect the SIX VS Code extension to show results there."* |
+| Extension disconnected | J — Codex in Terminal | *"Connect the SIX VS Code extension first."* |
+| Extension running an older build | I — Git Diff, L — Context | *"Reload the SIX VS Code extension to enable this key."* |
+| Agent terminal unsupported | J — Codex in Terminal | *"Reload the SIX VS Code extension to enable this key."* |
+| No file open | U — Open File, I — Editor Diff | *"Open a project file in VS Code first."* |
+| No diagnostics | Problem | *"No editor diagnostics available."* |
+
+The first row is the one to check after installing. It proves the whole chain in a single step: the
+editor saw an unsaved buffer, the backend refused to run tests against files that are not on disk,
+and the key said so rather than failing when pressed.
+
 ## How it talks to the backend
 
 A one-second heartbeat, plus a 200 ms debounced tick on editor events (active file, selection,
