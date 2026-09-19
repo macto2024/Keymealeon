@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Checkout — Keymaeleon Store</title>
+  <style>
+    :root { color-scheme: light dark; --bg:#f6f7f9; --card:#fff; --text:#16181d; --dim:#6b7280; --line:#e5e7eb; --bad:#d7263d; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#0e1013; --card:#171a20; --text:#e9ecf1; --dim:#8b93a1; --line:#272c35; --bad:#ff6b78; }
+    }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { background:var(--bg); color:var(--text); font:16px/1.5 ui-sans-serif,-apple-system,"Segoe UI",system-ui,sans-serif;
+           min-height:100vh; display:grid; place-items:center; padding:24px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:28px; width:min(440px,100%);
+            box-shadow:0 10px 40px rgb(0 0 0 / .07); }
+    h1 { font-size:20px; letter-spacing:-.01em; }
+    .sub { color:var(--dim); font-size:13px; margin-top:2px; margin-bottom:20px; }
+    .line { display:grid; grid-template-columns:1fr auto auto; gap:12px; align-items:baseline; padding:11px 0; border-bottom:1px solid var(--line); }
+    .qty { color:var(--dim); font-size:13px; font-variant-numeric:tabular-nums; }
+    .price { font-variant-numeric:tabular-nums; }
+    .totals { display:flex; align-items:baseline; justify-content:space-between; margin-top:20px; }
+    .totals span:first-child { color:var(--dim); font-size:13px; text-transform:uppercase; letter-spacing:.08em; }
+    #total { font-size:30px; font-weight:650; font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
+    #total.broken { color:var(--bad); }
+    button { width:100%; margin-top:22px; padding:13px; border:0; border-radius:10px; background:var(--text); color:var(--card);
+             font:inherit; font-weight:600; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Checkout</h1>
+    <p class="sub">Keymaeleon Store · <span id="count"></span></p>
+    <div id="lines"></div>
+    <div class="totals"><span>Total</span><span id="total">—</span></div>
+    <button>Pay now</button>
+  </main>
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>

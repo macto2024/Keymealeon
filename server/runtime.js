@@ -26,13 +26,21 @@ export async function fingerprint(root) {
   await visit(root); return hash.digest('hex');
 }
 
+// The running application is the one context source the coding agent cannot reach. It reads
+// source and test output; it never sees the rendered page. A green suite and a broken page is a
+// fact only something watching both can hold, which is the whole argument for this keyboard.
+export function emptyBrowserFact() {
+  return { connected: false, url: null, error: null, at: null };
+}
+const BROWSER_IDLE_MS = 10000; // no heartbeat for this long means the tab is gone, not healthy
+
 export class Runtime extends EventEmitter {
   constructor(config) {
     super(); this.config = config; this.autoRoot = !config.root; this.child = null; this.refreshing = null;
     this.popupFocused = false; this.lastDeveloperMode = config.root ? 'project' : null;
     this.context = { live: true, revision: 0, project: config.root || null, active_app: config.root ? 'Local project' : 'Desktop', workflow_state: 'coding',
       os: { connected: false, bundle_id: null, app: 'home' }, vscode: { connected: false }, keyboard: { mode: config.root ? 'project' : 'home', page: 0, layout_revision: 1 }, sentry: { connected: false },
-      git: { available: false, dirty: false, changed_files: 0 }, agent: emptyAgentFact(), tests: { state: 'idle', output: '', stale: false }, test_command_available: Boolean(config.command?.length), recent_actions: [], watcher_error: null };
+      git: { available: false, dirty: false, changed_files: 0 }, agent: emptyAgentFact(), browser: emptyBrowserFact(), tests: { state: 'idle', output: '', stale: false }, test_command_available: Boolean(config.command?.length), recent_actions: [], watcher_error: null };
     this.token = randomUUID();
   }
   publish(message) {
@@ -83,7 +91,26 @@ export class Runtime extends EventEmitter {
     if (JSON.stringify(git) !== JSON.stringify(this.context.git)) { this.context.git = git; changed = true; }
     if (changed) this.publish('Project files or Git status updated');
   }
-  async start() { await this.refresh(); await this.agents?.poll().catch(() => {}); this.timer = setInterval(() => { this.refresh().catch(() => {}); this.agents?.poll().catch(() => {}); }, 1000); }
+  async start() { await this.refresh(); await this.agents?.poll().catch(() => {}); this.timer = setInterval(() => { this.refresh().catch(() => {}); this.agents?.poll().catch(() => {}); this.expireBrowser(); }, 1000); }
+  // Reports arrive from the page itself, so every field is untrusted text: clipped, never executed,
+  // and only ever shown on a key or in the status line.
+  setBrowser(body) {
+    const clip = (value, limit) => (typeof value === 'string' && value.trim() ? value.replace(/\s+/g, ' ').trim().slice(0, limit) : null);
+    const next = { connected: true, url: clip(body.url, 200), error: body.ok === true ? null : clip(body.message, 300), at: Date.now() };
+    this.browserSeen = next.at;
+    const previous = this.context.browser;
+    if (previous.connected && previous.error === next.error && previous.url === next.url) return { ok: true };
+    this.context.browser = { ...next, at: new Date(next.at).toISOString() };
+    this.publish(next.error ? `Browser: ${next.error}` : 'Browser reports no errors');
+    return { ok: true };
+  }
+  expireBrowser() {
+    if (!this.context.browser.connected || Date.now() - (this.browserSeen || 0) <= BROWSER_IDLE_MS) return;
+    // Silence is not health. A closed tab reports nothing, and neither does a page that crashed
+    // before it could tell us, so the error is dropped rather than left standing as current.
+    this.context.browser = emptyBrowserFact();
+    this.publish('Browser disconnected');
+  }
   setForeground(body) {
     const bundle = typeof body.bundle_id === 'string' ? body.bundle_id.slice(0, 200) : '';
     const app = ({ 'com.microsoft.VSCode': 'vscode', 'com.google.Chrome': 'chrome', 'com.openai.codex': 'codex', 'com.apple.Terminal': 'terminal' })[bundle] || 'home';

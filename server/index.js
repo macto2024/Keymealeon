@@ -23,6 +23,23 @@ const clients = new Set();
 runtime.on('snapshot', snapshot => { for (const client of clients) client.write(`data: ${JSON.stringify(snapshot)}\n\n`); });
 const port = Number(process.env.PORT || 5173);
 const origins = new Set([`http://127.0.0.1:${port}`, `http://localhost:${port}`]);
+// The demo storefront runs on its own origin, so one endpoint has to answer cross-origin.
+// It stays loopback-bound, is allowlisted by exact origin, size-capped, and can only ever set
+// display text -- it dispatches nothing. Everything else keeps the strict same-origin gate.
+const browserOrigins = new Set(config.browserOrigins || [`http://127.0.0.1:${port + 1}`, `http://localhost:${port + 1}`]);
+const loopbackHosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`]);
+
+async function browserReport(req, res, json) {
+  const origin = req.headers.origin;
+  if (!loopbackHosts.has(req.headers.host) || !origin || !browserOrigins.has(origin)) return json(403, { error: 'This origin may not report browser state.' });
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Vary', 'Origin');
+  if (req.method === 'OPTIONS') { res.writeHead(204, { 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'content-type', 'Access-Control-Max-Age': '600' }); return res.end(); }
+  if (req.method !== 'POST') return json(405, { error: 'POST only.' });
+  let body = '';
+  for await (const chunk of req) { body += chunk; if (body.length > 8192) return json(413, { error: 'Report too large.' }); }
+  return json(200, runtime.setBrowser(JSON.parse(body || '{}')));
+}
 // This repository publishes the backend. A display client (the six-key surface the native monitor
 // loads into its WebView) is served from these paths when its files are present next to the server;
 // `live.js` ships here so a client can render the same layer the backend resolved.
@@ -30,8 +47,9 @@ const assets = { '/': ['index.html', 'text/html'], '/style.css': ['style.css', '
 const server = http.createServer(async (req, res) => {
   const json = (status, body) => { res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(body)); };
   try {
-    if (!origins.has(`http://${req.headers.host}`) || (req.headers.origin && !origins.has(req.headers.origin)) || req.headers['sec-fetch-site'] === 'cross-site') return json(403, { error: 'Local same-origin clients only.' });
     const url = new URL(req.url, `http://${req.headers.host}`);
+    if (url.pathname === '/api/browser/report') return browserReport(req, res, json);
+    if (!origins.has(`http://${req.headers.host}`) || (req.headers.origin && !origins.has(req.headers.origin)) || req.headers['sec-fetch-site'] === 'cross-site') return json(403, { error: 'Local same-origin clients only.' });
     if (req.method === 'GET' && url.pathname === '/api/context') return json(200, { context: runtime.context, token: runtime.token });
     if (req.method === 'GET' && url.pathname === '/api/health') return json(200, { ok: true, project: config.root });
     if (req.method === 'GET' && url.pathname === '/api/events') {

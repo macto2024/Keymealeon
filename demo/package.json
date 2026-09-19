@@ -1,0 +1,11 @@
+{
+  "name": "keymaeleon-demo-store",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Checkout page used by the Keymaeleon demo. Contains a deliberate bug.",
+  "scripts": {
+    "test": "node --test --test-reporter=tap test/*.test.js",
+    "start": "node serve.js"
+  }
+}
