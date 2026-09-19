@@ -82,3 +82,8 @@ And, eventually, we want to try larger keyboard layouts.
 The main idea would stay the same though: instead of having one fixed keyboard for every task, the keyboard should change with what you’re doing.
 
 
+
+---
+
+**Setup and usage:** [USAGE.md](USAGE.md) — how to run the backend with VS Code and the keyboard.
+Build plan in [PLAN.md](PLAN.md), demo script in [DEMO.md](DEMO.md).
