@@ -1,9 +1,5 @@
 #!/bin/sh
 set -eu
-if [ "$(uname -s)" != Darwin ]; then
-  printf '%s\n' 'This host is macOS-only. On Linux use install-vscode.sh and companion/keymaeleon_6.py.' >&2
-  exit 1
-fi
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 bundle="$root/native/bin/SixHost.app"
 mkdir -p "$bundle/Contents/MacOS" /private/tmp/six-clang-cache

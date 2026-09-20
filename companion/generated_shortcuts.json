@@ -1,0 +1,92 @@
+{
+ "version": 1,
+ "entries": {
+  "arduino ide": {
+   "app": "arduino ide",
+   "model": "gpt-4o-mini",
+   "summary": "Essential shortcuts for Arduino IDE.",
+   "labels": [
+    "Verify",
+    "Upload",
+    "New File",
+    "Open",
+    "Find",
+    "Serial Monitor"
+   ],
+   "keys": [
+    "ctrl+r",
+    "ctrl+u",
+    "ctrl+n",
+    "ctrl+o",
+    "ctrl+f",
+    "ctrl+shift+m"
+   ],
+   "actions": [
+    "Verifies the code for errors.",
+    "Uploads the code to the board.",
+    "Creates a new sketch.",
+    "Opens an existing sketch.",
+    "Finds text in the sketch.",
+    "Opens the Serial Monitor."
+   ]
+  },
+  "chatgpt (/home/rtymkow/.config/codex)": {
+   "app": "chatgpt",
+   "model": "gpt-4o-mini",
+   "summary": "Useful shortcuts for ChatGPT application.",
+   "labels": [
+    "New chat",
+    "Find",
+    "Send",
+    "Undo",
+    "Redo",
+    "Help"
+   ],
+   "keys": [
+    "ctrl+n",
+    "ctrl+f",
+    "Return",
+    "ctrl+z",
+    "ctrl+y",
+    "F1"
+   ],
+   "actions": [
+    "Starts a new chat session",
+    "Opens the find dialog",
+    "Sends the current message",
+    "Undoes the last action",
+    "Redoes the last undone action",
+    "Opens the help menu"
+   ]
+  },
+  "org.gnome.nautilus": {
+   "app": "Nautilus",
+   "model": "gpt-4o-mini",
+   "summary": "File manager for GNOME.",
+   "labels": [
+    "New Tab",
+    "Find",
+    "Refresh",
+    "Go Back",
+    "Go Forward",
+    "Properties"
+   ],
+   "keys": [
+    "ctrl+t",
+    "ctrl+f",
+    "F5",
+    "alt+Left",
+    "alt+Right",
+    "ctrl+i"
+   ],
+   "actions": [
+    "Open a new tab",
+    "Open the find dialog",
+    "Refresh the current view",
+    "Navigate to the previous folder",
+    "Navigate to the next folder",
+    "Show the properties of the selected item"
+   ]
+  }
+ }
+}

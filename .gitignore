@@ -2,3 +2,6 @@ native/bin/
 node_modules/
 .DS_Store
 demo/.git/
+**/browse.vc.db*
+**/__pycache__/
+*.py[cod]

@@ -4,19 +4,65 @@
   "description": "Connect local VS Code editor context to the SIX keyboard.",
   "version": "0.2.0",
   "publisher": "six-local",
-  "engines": { "vscode": "^1.85.0" },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
   "main": "./extension.cjs",
-  "activationEvents": ["onStartupFinished"],
-  "capabilities": { "untrustedWorkspaces": { "supported": false }, "virtualWorkspaces": false },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false
+    },
+    "virtualWorkspaces": false
+  },
   "contributes": {
     "commands": [
-      { "command": "six.connect", "title": "SIX: Connect to Local Backend" },
-      { "command": "six.disconnect", "title": "SIX: Disconnect" },
-      { "command": "six.openSimulator", "title": "SIX: Open Keyboard" }
+      {
+        "command": "six.connect",
+        "title": "SIX: Connect to Local Backend"
+      },
+      {
+        "command": "six.disconnect",
+        "title": "SIX: Disconnect"
+      },
+      {
+        "command": "six.openSimulator",
+        "title": "SIX: Open Keyboard"
+      }
     ],
     "configuration": {
       "title": "SIX",
-      "properties": { "six.backendUrl": { "type": "string", "default": "http://127.0.0.1:5173", "scope": "machine", "description": "Local SIX backend URL (loopback HTTP only)." } }
+      "properties": {
+        "six.backendUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:5173",
+          "scope": "machine",
+          "description": "Local SIX backend URL (loopback HTTP only)."
+        },
+        "six.testCommand": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "resource",
+          "description": "Test executable and arguments, run without a shell in the workspace folder."
+        },
+        "six.codexTarget": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "cli"
+          ],
+          "default": "auto",
+          "description": "Prefer the Codex VS Code sidebar or open the Codex CLI."
+        }
+      }
     }
-  }
+  },
+  "extensionKind": [
+    "ui"
+  ]
 }

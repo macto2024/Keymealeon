@@ -1,16 +1,6 @@
 #!/bin/sh
 set -eu
-if [ "$(uname -s)" != Darwin ]; then
-  printf '%s\n' 'This host is macOS-only. On Linux use install-vscode.sh and companion/keymaeleon_6.py.' >&2
-  exit 1
-fi
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-for required in server live.js app.js index.html style.css six.config.json; do
-  if [ ! -e "$root/$required" ]; then
-    printf 'Missing %s: this copied macOS host needs the original SIX web backend. Use the Python companion instead.\n' "$required" >&2
-    exit 1
-  fi
-done
 node=$(command -v node)
 ffmpeg=$(command -v ffmpeg || true)
 whisper=$(command -v whisper || true)
